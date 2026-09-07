@@ -21,7 +21,7 @@ function callClaude_(systemPrompt, userPrompt) {
 
   const payload = {
     model: getClaudeModel_(),
-    max_tokens: 1024,
+    max_tokens: 4096,
     output_config: { effort: 'low' }, // 短文比較なので低コストのeffortで十分
     system: systemPrompt,
     messages: [{ role: 'user', content: userPrompt }],
