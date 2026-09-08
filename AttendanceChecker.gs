@@ -2,7 +2,14 @@
 // Feature A: 前営業日分の勤怠連絡について
 //   (1) 出勤時・退勤時それぞれの投稿有無をチェック
 //   (2) 出勤時投稿(本日の予定)の項目が、退勤時投稿(本日の実績)で消化されているかをLLMで判定
+//   (3) 投稿が無い/1件のみの場合、事前連絡(数日前の投稿での予告)や当日連絡(体調不良等の急な連絡)による
+//       休暇でないかをLLMで確認し、確認できた場合は問題としてカウントしない
 // 問題(投稿漏れ、または予定未消化)がある場合のみアラートスペースに通知する。
+// 休暇が確認できたメンバーは、他に問題があればその補足として、他に問題が無ければ軽い一言として
+// あわせてアラートスペースに投稿する(勤怠チェックが正常に機能していることが分かるように)。
+
+// 事前連絡(数日前の投稿での予告)を拾うためにさかのぼる日数
+const LEAVE_ANNOUNCEMENT_LOOKBACK_DAYS = 14;
 
 /** 本番実行用。問題があれば実際にアラートスペースへ投稿する。 */
 function checkPreviousBusinessDayPosts() {
@@ -21,10 +28,20 @@ function runAttendanceCheck_(dryRun) {
   const targetDate = getPreviousBusinessDay_(new Date());
   const { start, end } = getDayRange_(targetDate);
 
-  const messages = listMessagesInSpace_(ATTENDANCE_SPACE_ID, start, end);
+  const lookbackStart = new Date(start);
+  lookbackStart.setDate(lookbackStart.getDate() - LEAVE_ANNOUNCEMENT_LOOKBACK_DAYS);
+
+  // 対象日分のみのメッセージだけでなく、事前連絡(数日前の投稿)を拾えるよう
+  // さかのぼった範囲もまとめて1回で取得しておく。
+  const recentMessages = listMessagesInSpace_(ATTENDANCE_SPACE_ID, lookbackStart, end);
+  const messages = recentMessages.filter((m) => {
+    const t = new Date(m.createTime);
+    return t >= start && t < end;
+  });
   const userIdMap = getMemberUserIdMap_(); // email -> "users/{id}"
 
   const reportLines = [];
+  const leaveLines = [];
 
   MEMBERS.forEach((member) => {
     const userId = userIdMap[member.email];
@@ -37,12 +54,18 @@ function runAttendanceCheck_(dryRun) {
       .filter((m) => m.sender && m.sender.name === userId)
       .sort((a, b) => new Date(a.createTime) - new Date(b.createTime));
 
-    if (memberMessages.length === 0) {
-      reportLines.push('・' + member.name + ': 出勤時・退勤時どちらの投稿も確認できません');
-      return;
-    }
-    if (memberMessages.length === 1) {
-      reportLines.push('・' + member.name + ': 投稿が1件のみです(出勤時・退勤時のいずれかが未投稿の可能性)');
+    if (memberMessages.length === 0 || memberMessages.length === 1) {
+      const missingDescription =
+        memberMessages.length === 0
+          ? '出勤時・退勤時どちらの投稿も確認できません'
+          : '投稿が1件のみです(出勤時・退勤時のいずれかが未投稿の可能性)';
+
+      const leaveReason = detectLeaveAnnouncement_(member, userId, targetDate, recentMessages);
+      if (leaveReason) {
+        leaveLines.push('・' + member.name + ': ' + leaveReason);
+      } else {
+        reportLines.push('・' + member.name + ': ' + missingDescription);
+      }
       return;
     }
 
@@ -54,13 +77,20 @@ function runAttendanceCheck_(dryRun) {
     }
   });
 
-  if (reportLines.length === 0) {
+  if (reportLines.length === 0 && leaveLines.length === 0) {
     Logger.log('No issues found for ' + formatDateJp_(targetDate));
     return;
   }
 
-  const text =
-    formatDateJp_(targetDate) + '(前営業日)の勤怠連絡チェックで気になる点があります:\n' + reportLines.join('\n');
+  let text;
+  if (reportLines.length > 0) {
+    text = formatDateJp_(targetDate) + '(前営業日)の勤怠連絡チェックで気になる点があります:\n' + reportLines.join('\n');
+    if (leaveLines.length > 0) {
+      text += '\n\n(休暇を確認できたため対象外としたメンバー)\n' + leaveLines.join('\n');
+    }
+  } else {
+    text = formatDateJp_(targetDate) + '(前営業日)の勤怠連絡チェック: 休暇を確認できました\n' + leaveLines.join('\n');
+  }
 
   if (dryRun) {
     Logger.log('[DRY RUN] 投稿はせず、内容のみ表示します:\n' + text);
@@ -69,6 +99,58 @@ function runAttendanceCheck_(dryRun) {
 
   postToAlertSpace_(text);
   Logger.log('Posted alert:\n' + text);
+}
+
+/**
+ * 出勤時・退勤時の投稿が0件または1件しか無いメンバーについて、
+ * 事前連絡(数日前の投稿内での予告)または当日連絡(急な休みの連絡)によって
+ * 対象日が休暇であると分かるかをLLMで判定する。
+ * 休暇が確認できればその理由(短い説明)を返し、確認できなければnullを返す。
+ */
+function detectLeaveAnnouncement_(member, userId, targetDate, recentMessages) {
+  const memberRecentMessages = recentMessages
+    .filter((m) => m.sender && m.sender.name === userId)
+    .sort((a, b) => new Date(a.createTime) - new Date(b.createTime));
+
+  if (memberRecentMessages.length === 0) {
+    return null;
+  }
+
+  const history = memberRecentMessages
+    .map((m) => '[' + formatDateTimeJp_(new Date(m.createTime)) + ']\n' + (m.text || ''))
+    .join('\n\n---\n\n');
+
+  const systemPrompt = [
+    'あなたは勤怠チェックアシスタントです。',
+    'ある社員の直近の投稿履歴(日時つき)を見て、指定された対象日にその社員が',
+    '休暇(有給・夏休み等の事前連絡、または体調不良等による当日の急な連絡)であることが',
+    '読み取れるかどうかを判定してください。',
+    '',
+    '判定のポイント:',
+    '- 対象日より前の投稿で「◯/◯,◯は休み(夏休み・有給など)を頂いております」のように',
+    '  対象日を含む期間の休暇を予告している場合は休暇とみなす。',
+    '- 対象日当日の投稿で「本日お休みします」のように急な休みを連絡している場合も休暇とみなす。',
+    '- 単に業務予定が書かれているだけで休暇に触れていない場合は休暇とみなさない。',
+    '',
+    '出力形式は厳密に次のいずれかにしてください。',
+    '- 休暇が確認できない場合は "NO_LEAVE" という1単語だけを出力する。',
+    '- 休暇が確認できた場合は1行で "LEAVE: " に続けて、いつの投稿で分かったか(日付)と',
+    '  休暇理由を日本語で簡潔に書く。',
+  ].join('\n');
+
+  const userPrompt =
+    '【対象日】' +
+    formatDateJp_(targetDate) +
+    '\n\n【' +
+    member.name +
+    'さんの直近の投稿履歴(古い順)】\n' +
+    history;
+
+  const response = callClaude_(systemPrompt, userPrompt).trim();
+  if (response.indexOf('LEAVE') !== 0) {
+    return null;
+  }
+  return response.replace(/^LEAVE:\s*/i, '').trim();
 }
 
 /**
@@ -129,4 +211,8 @@ function getDayRange_(date) {
 
 function formatDateJp_(date) {
   return Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy/MM/dd');
+}
+
+function formatDateTimeJp_(date) {
+  return Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy/MM/dd HH:mm');
 }
