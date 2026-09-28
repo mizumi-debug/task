@@ -28,7 +28,7 @@ const MEMBERS = [
   {
     name: '泉未知佳',
     email: 'm_izumi@asobimo.com',
-    role: 'データ分析・広告運用・生放送',
+    role: 'データ分析・施策提案・広告の投資判断・コラボ進行',
     goalSheetId: '1dcIG2KIBoNEGl9NDAnFn7dli6y5tYeCPe5oql_YxNMw',
   },
 ];
