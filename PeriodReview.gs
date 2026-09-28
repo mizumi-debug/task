@@ -3,6 +3,7 @@
 // 直近1週間ではなく期間全体(四半期/半期)の投稿をまとめてLLMに評価させる。
 // レビュー自体は面談日程などの都合で変わるため手動実行だが、
 // 実行を忘れないよう期末が近づいたらChatにリマインドだけ自動投稿する。
+// あわせて期初日には、目標シートのタブ(gid)切り替えのリマインドも投稿する。
 
 const REVIEW_REMINDER_LEAD_DAYS = 5; // 期末の何日前にリマインドするか
 
@@ -11,6 +12,7 @@ function onDailyPeriodReviewReminderCheck() {
   const today = new Date();
   maybePostQuarterlyReminder_(today);
   maybePostHalfYearReminder_(today);
+  maybePostPeriodGidSwitchReminder_(today);
 }
 
 function maybePostQuarterlyReminder_(today) {
@@ -49,6 +51,39 @@ function maybePostHalfYearReminder_(today) {
     ].join('\n')
   );
   Logger.log('Posted half-year review reminder.');
+}
+
+/**
+ * 半期の初日(4/1・10/1)に、目標シートのタブ(gid)切り替えをリマインドする。
+ * 新しい期の目標がFIXされたタイミングで CURRENT_PERIOD_GIDS_JSON を書き換えてもらう想定。
+ */
+function maybePostPeriodGidSwitchReminder_(today) {
+  const range = getCurrentFiscalHalfRange_(today);
+  if (daysUntil_(range.start, today) !== 0) return;
+
+  const keys = ['shared'].concat(MEMBERS.map((member) => member.email));
+  const template = '{' + keys.map((key) => '"' + key + '":新しいgid').join(',') + '}';
+  const targets = ['・部/チーム目標シート(shared)']
+    .concat(MEMBERS.map((member) => '・' + member.name + 'さんの個人シート(' + member.email + ')'))
+    .join('\n');
+
+  postToAlertSpace_(
+    [
+      '【リマインド】新しい半期(' + formatDateJp_(range.start) + '〜)が始まりました。目標シートのタブ(gid)の切り替えをお願いします。',
+      '新しい期の目標がFIXされてから切り替えてください(FIX前に切り替えると目標未設定として評価されます)。',
+      '',
+      '対象(' + keys.length + 'つ):',
+      targets,
+      '',
+      '1. 各シートの新しい期のタブを開き、URLの gid=xxxxxxxx の数字をひかえる',
+      '2. 下のリンクからApps Scriptの「プロジェクトの設定」→「スクリプト プロパティ」を開く',
+      '3. CURRENT_PERIOD_GIDS_JSON の値を次の形式で書き換えて保存する',
+      template,
+      '',
+      'https://script.google.com/home/projects/' + ScriptApp.getScriptId() + '/settings',
+    ].join('\n')
+  );
+  Logger.log('Posted period gid switch reminder.');
 }
 
 /** このApps Scriptプロジェクトのエディタを直接開くURL。 */

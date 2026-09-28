@@ -25,6 +25,12 @@ const MEMBERS = [
     role: '生放送',
     goalSheetId: '1Uo4B-LVtmOhcoDFeIkhB2r42VUY1E3Ouu0j6kmWTe4g',
   },
+  {
+    name: '泉未知佳',
+    email: 'm_izumi@asobimo.com',
+    role: 'データ分析・広告運用・生放送',
+    goalSheetId: '1dcIG2KIBoNEGl9NDAnFn7dli6y5tYeCPe5oql_YxNMw',
+  },
 ];
 
 // 部の目標・チームの目標が載っている共有スプレッドシート(スプレッドシートID自体は不変)

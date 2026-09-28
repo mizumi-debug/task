@@ -44,7 +44,7 @@ function setMemberUserIdMap_(map) {
 }
 
 /**
- * dumpDistinctSendersの結果から特定した3名分のIDを保存する、実行専用の一時関数。
+ * dumpDistinctSendersの結果から特定したメンバー分のIDを保存する、実行専用の一時関数。
  * 実行して保存を確認したら、この関数ごと削除してpushし直してよい。
  */
 function applyMemberUserIdMap() {
@@ -52,6 +52,7 @@ function applyMemberUserIdMap() {
     'k_kou@asobimo.com': 'users/104715465412828610736',
     'y_ono@asobimo.com': 'users/116152513437845905182',
     'pillow_kitagawa@asobimo.com': 'users/103161311455224551250',
+    'm_izumi@asobimo.com': 'users/109425342489579445558',
   });
 }
 
@@ -71,6 +72,7 @@ function applyCurrentPeriodGids() {
       'k_kou@asobimo.com': 2008699027,
       'y_ono@asobimo.com': 829583110,
       'pillow_kitagawa@asobimo.com': 1971513590,
+      'm_izumi@asobimo.com': 708705692,
     })
   );
   Logger.log('Saved CURRENT_PERIOD_GIDS_JSON: ' + getScriptProp_('CURRENT_PERIOD_GIDS_JSON'));

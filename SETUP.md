@@ -255,12 +255,14 @@ appsscript.jsonにGoogle Sheetsの読み取り権限を追加したため、初�
 
 部/チーム目標シート、および各メンバーの個人評価シートは、半期(4月/10月)ごとに新しいタブが追加される運用です。新しい期が始まって目標がFIXされたら、以下の手順で切り替えてください(コードの変更やpushは不要です)。
 
-1. 新しい期のタブを開き、URLから `gid=xxxxxxxx` の数字部分をひかえる(部/チーム目標シート、黄卉さん・大野さん・ピローさんの個人シート、全部で4つ分)
+期初日(4/1・10/1)の9:20頃に、この手順のリマインドがアラートスペースに自動投稿されます。
+
+1. 新しい期のタブを開き、URLから `gid=xxxxxxxx` の数字部分をひかえる(部/チーム目標シート、黄卉さん・大野さん・ピローさん・泉さんの個人シート、全部で5つ分)
 2. Apps Scriptの「プロジェクトの設定」→「スクリプト プロパティ」→ `CURRENT_PERIOD_GIDS_JSON` を編集
 3. 値を新しいgidに置き換えて保存。形式は以下の通り
 
    ```json
-   {"shared":新しいgid,"k_kou@asobimo.com":新しいgid,"y_ono@asobimo.com":新しいgid,"pillow_kitagawa@asobimo.com":新しいgid}
+   {"shared":新しいgid,"k_kou@asobimo.com":新しいgid,"y_ono@asobimo.com":新しいgid,"pillow_kitagawa@asobimo.com":新しいgid,"m_izumi@asobimo.com":新しいgid}
    ```
 
 まだ目標がFIXされていない(空欄が多い)タブに切り替えると、Claudeが「目標が設定されていないようです」といった趣旨のコメントを返す可能性がありますが、それは正常な挙動です。FIXされてから切り替えてください。
