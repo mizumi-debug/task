@@ -88,12 +88,16 @@ function syncCompanyHolidaysFromAlertSpace_() {
 
   const lines = [];
   if (added.length > 0) {
-    lines.push('休日として登録しました: ' + added.sort().map(formatDateKeyJp_).join(', '));
+    lines.push(
+      '休日として登録しました(勤怠チェックの対象外になります): ' + added.sort().map(formatDateKeyJp_).join(', ')
+    );
   }
   if (removed.length > 0) {
-    lines.push('休日の登録を取り消しました: ' + removed.sort().map(formatDateKeyJp_).join(', '));
+    lines.push(
+      '休日の登録を取り消しました(勤怠チェックの対象に戻ります): ' + removed.sort().map(formatDateKeyJp_).join(', ')
+    );
   }
-  const text = '【会社の休日の登録】\n' + lines.join('\n') + '\nこの日は勤怠チェックの対象外になります。';
+  const text = '【会社の休日の登録】\n' + lines.join('\n');
   postToAlertSpace_(text);
   Logger.log('Posted company holiday update:\n' + text);
 }
