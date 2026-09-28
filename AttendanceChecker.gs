@@ -197,8 +197,47 @@ function getPreviousBusinessDay_(fromDate) {
   const d = new Date(fromDate);
   do {
     d.setDate(d.getDate() - 1);
-  } while (d.getDay() === 0 || d.getDay() === 6); // 土日をスキップ
+  } while (!isBusinessDay_(d)); // 土日・祝日をスキップ
   return d;
+}
+
+// Googleが公開している日本の祝日カレンダー
+const JAPANESE_HOLIDAY_CALENDAR_ID = 'ja.japanese#holiday@group.v.calendar.google.com';
+
+/** 土日・日本の祝日・会社独自の休日(CompanyHolidays.gs)のいずれでもなければ true。 */
+function isBusinessDay_(date) {
+  const day = date.getDay();
+  if (day === 0 || day === 6) {
+    return false;
+  }
+  return !isCompanyHoliday_(date) && !isJapaneseHoliday_(date);
+}
+
+/**
+ * 日本の祝日(振替休日・国民の休日を含む)なら true。
+ * このカレンダーには節分・七夕などの祝日ではない行事(説明が「祭日」)も含まれるため、
+ * 説明が「祝日」のイベントだけを祝日として扱う。
+ */
+function isJapaneseHoliday_(date) {
+  const calendar = CalendarApp.getCalendarById(JAPANESE_HOLIDAY_CALENDAR_ID);
+  if (!calendar) {
+    throw new Error('日本の祝日カレンダーを取得できませんでした: ' + JAPANESE_HOLIDAY_CALENDAR_ID);
+  }
+  return calendar.getEventsForDay(date).some((event) => event.getDescription().indexOf('祝日') !== -1);
+}
+
+/** 動作確認用。直近1年分の祝日カレンダーのイベントと、祝日として扱うかどうかをログに出す。 */
+function testJapaneseHolidays() {
+  const calendar = CalendarApp.getCalendarById(JAPANESE_HOLIDAY_CALENDAR_ID);
+  const start = new Date();
+  const end = new Date(start);
+  end.setFullYear(end.getFullYear() + 1);
+  calendar.getEvents(start, end).forEach((event) => {
+    const isHoliday = event.getDescription().indexOf('祝日') !== -1;
+    Logger.log(
+      formatDateJp_(event.getAllDayStartDate()) + ' ' + event.getTitle() + ' → ' + (isHoliday ? '祝日(スキップ)' : '対象外')
+    );
+  });
 }
 
 function getDayRange_(date) {

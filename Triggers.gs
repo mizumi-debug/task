@@ -45,9 +45,17 @@ function removeTriggers_(handlerFunctionName) {
 }
 
 function onDailyAttendanceCheck() {
+  // 休日の連絡は土日・休日中にも投稿されうるので、スキップ判定より前に毎日読み取る。
+  // 読み取りに失敗しても勤怠チェック自体は続行する(次回の実行で改めて読み取られる)。
+  try {
+    syncCompanyHolidaysFromAlertSpace_();
+  } catch (e) {
+    Logger.log('WARNING: failed to sync company holidays: ' + e);
+  }
+
   const today = new Date();
-  if (today.getDay() === 0 || today.getDay() === 6) {
-    Logger.log('Today is a weekend; skipping attendance check.');
+  if (!isBusinessDay_(today)) {
+    Logger.log('Today is a weekend or holiday; skipping attendance check.');
     return;
   }
   checkPreviousBusinessDayPosts();
