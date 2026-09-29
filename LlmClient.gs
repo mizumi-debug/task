@@ -4,7 +4,7 @@
 
 const ANTHROPIC_API_URL = 'https://api.anthropic.com/v1/messages';
 const ANTHROPIC_VERSION = '2023-06-01';
-const DEFAULT_CLAUDE_MODEL = 'claude-opus-5';
+const DEFAULT_CLAUDE_MODEL = 'claude-opus-5-5';
 
 /** Script Property "CLAUDE_MODEL" があればそちらを優先(コスト重視でモデルを下げたい場合用)。 */
 function getClaudeModel_() {
